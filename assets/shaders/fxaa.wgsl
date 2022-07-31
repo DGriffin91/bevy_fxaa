@@ -51,7 +51,7 @@ fn fxaa(tex: texture_2d<f32>, samp: sampler, fragCoord: vec2<f32>, resolution: v
     let rgbSE = textureSample(tex, samp, v_rgbSE).xyz;
     let texColor = textureSample(tex, samp, v_rgbM);
     let rgbM  = texColor.xyz;
-    let luma = vec3<f32>(0.299, 0.587, 0.114);
+    let luma = vec3(0.299, 0.587, 0.114);
     let lumaNW = dot(rgbNW, luma);
     let lumaNE = dot(rgbNE, luma);
     let lumaSW = dot(rgbSW, luma);
@@ -60,7 +60,7 @@ fn fxaa(tex: texture_2d<f32>, samp: sampler, fragCoord: vec2<f32>, resolution: v
     let lumaMin = min(lumaM, min(min(lumaNW, lumaNE), min(lumaSW, lumaSE)));
     let lumaMax = max(lumaM, max(max(lumaNW, lumaNE), max(lumaSW, lumaSE)));
     
-    var dir = vec2<f32>(0.0);
+    var dir = vec2(0.0);
     dir.x = -((lumaNW + lumaNE) - (lumaSW + lumaSE));
     dir.y =  ((lumaNW + lumaSW) - (lumaNE + lumaSE));
     
@@ -68,8 +68,8 @@ fn fxaa(tex: texture_2d<f32>, samp: sampler, fragCoord: vec2<f32>, resolution: v
                           (0.25 * FXAA_REDUCE_MUL), FXAA_REDUCE_MIN);
     
     let rcpDirMin = 1.0 / (min(abs(dir.x), abs(dir.y)) + dirReduce);
-    dir = min(vec2<f32>(FXAA_SPAN_MAX, FXAA_SPAN_MAX),
-              max(vec2<f32>(-FXAA_SPAN_MAX, -FXAA_SPAN_MAX),
+    dir = min(vec2(FXAA_SPAN_MAX, FXAA_SPAN_MAX),
+              max(vec2(-FXAA_SPAN_MAX, -FXAA_SPAN_MAX),
               dir * rcpDirMin)) * inverseVP;
     
     let rgbA = 0.5 * (
@@ -81,9 +81,9 @@ fn fxaa(tex: texture_2d<f32>, samp: sampler, fragCoord: vec2<f32>, resolution: v
 
     let lumaB = dot(rgbB, luma);
     if ((lumaB < lumaMin) || (lumaB > lumaMax)) {
-        color = vec4<f32>(rgbA, texColor.a);
+        color = vec4(rgbA, texColor.a);
     } else {
-        color = vec4<f32>(rgbB, texColor.a);
+        color = vec4(rgbB, texColor.a);
     }
     return color;
 }
@@ -93,40 +93,40 @@ fn fxaa(tex: texture_2d<f32>, samp: sampler, fragCoord: vec2<f32>, resolution: v
 #import bevy_pbr::mesh_view_bindings
 
 struct VertexOutput {
-    [[builtin(position)]] frag_coord: vec4<f32>;
-    [[location(0)]] coord: vec2<f32>;
-    [[location(1)]] v_rgbNW: vec2<f32>;
-    [[location(2)]] v_rgbNE: vec2<f32>;
-    [[location(3)]] v_rgbSW: vec2<f32>;
-    [[location(4)]] v_rgbSE: vec2<f32>;
-    [[location(5)]] v_rgbM: vec2<f32>;
+    @builtin(position) frag_coord: vec4<f32>,
+    @location(0) coord: vec2<f32>,
+    @location(1) v_rgbNW: vec2<f32>,
+    @location(2) v_rgbNE: vec2<f32>,
+    @location(3) v_rgbSW: vec2<f32>,
+    @location(4) v_rgbSE: vec2<f32>,
+    @location(5) v_rgbM: vec2<f32>,
 };
 
-[[stage(vertex)]]
+@vertex
 fn vertex(
-    [[location(0)]] vertex_position: vec3<f32>,
-    [[location(1)]] vertex_uv: vec2<f32>
+    @location(0) vertex_position: vec3<f32>,
+    @location(1) vertex_uv: vec2<f32>
 ) -> VertexOutput {
     var out: VertexOutput;
-    let resolution = vec2<f32>(view.width, view.height);
-    out.frag_coord = view.view_proj * vec4<f32>(vertex_position, 1.0);
+    let resolution = vec2(view.width, view.height);
+    out.frag_coord = view.view_proj * vec4(vertex_position, 1.0);
     out.coord = vertex_position.xy + resolution / 2.0;
 	let inverseVP = 1.0 / resolution;
-    out.v_rgbNW = (out.coord + vec2<f32>(-1.0, -1.0)) * inverseVP;
-    out.v_rgbNE = (out.coord + vec2<f32>(1.0, -1.0)) * inverseVP;
-    out.v_rgbSW = (out.coord + vec2<f32>(-1.0, 1.0)) * inverseVP;
-    out.v_rgbSE = (out.coord + vec2<f32>(1.0, 1.0)) * inverseVP;
-	out.v_rgbM = vec2<f32>(out.coord * inverseVP);
+    out.v_rgbNW = (out.coord + vec2(-1.0, -1.0)) * inverseVP;
+    out.v_rgbNE = (out.coord + vec2(1.0, -1.0)) * inverseVP;
+    out.v_rgbSW = (out.coord + vec2(-1.0, 1.0)) * inverseVP;
+    out.v_rgbSE = (out.coord + vec2(1.0, 1.0)) * inverseVP;
+	out.v_rgbM = vec2(out.coord * inverseVP);
     return out;
 }
 
-[[group(1), binding(0)]]
+@group(1) @binding(0)
 var texture: texture_2d<f32>;
-[[group(1), binding(1)]]
+@group(1) @binding(1)
 var our_sampler: sampler;
 
-[[stage(fragment)]]
-fn fragment(in: VertexOutput) -> [[location(0)]] vec4<f32> {
+@fragment
+fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     let resolution = vec2<f32>(view.width, view.height);
 
     var output_color = fxaa(texture, our_sampler, in.coord, resolution, 

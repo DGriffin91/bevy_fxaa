@@ -1,20 +1,15 @@
 use bevy::{
-    ecs::system::{lifetimeless::SRes, SystemParamItem},
     prelude::*,
     reflect::TypeUuid,
     render::{
         camera::{Camera, RenderTarget},
-        render_asset::{PrepareAssetError, RenderAsset, RenderAssets},
         render_resource::{
-            BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout,
-            BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource, BindingType,
-            Extent3d, SamplerBindingType, ShaderStages, TextureDescriptor, TextureDimension,
-            TextureFormat, TextureSampleType, TextureUsages, TextureViewDimension,
+            AsBindGroup, Extent3d, ShaderRef, TextureDescriptor, TextureDimension, TextureFormat,
+            TextureUsages,
         },
-        renderer::RenderDevice,
         view::RenderLayers,
     },
-    sprite::{Material2d, Material2dPipeline, Material2dPlugin, MaterialMesh2dBundle},
+    sprite::{Material2d, Material2dPlugin, MaterialMesh2dBundle},
 };
 
 fn main() {
@@ -157,95 +152,21 @@ fn main_camera_cube_rotator_system(
 // Region below declares of the custom material handling post processing effect
 
 /// Our custom post processing material
-#[derive(TypeUuid, Clone)]
+#[derive(AsBindGroup, TypeUuid, Clone)]
 #[uuid = "bc2f08eb-a0fb-43f1-a908-54871ea597d5"]
 struct PostProcessingMaterial {
-    /// In this example, this image will be the result of the main camera.
+    /// In this example, this image will be the result of the main camera.    
+    #[texture(0)]
+    #[sampler(1)]
     source_image: Handle<Image>,
 }
 
-struct PostProcessingMaterialGPU {
-    bind_group: BindGroup,
-}
-
 impl Material2d for PostProcessingMaterial {
-    fn bind_group(material: &PostProcessingMaterialGPU) -> &BindGroup {
-        &material.bind_group
+    fn fragment_shader() -> ShaderRef {
+        "shaders/fxaa.wgsl".into()
     }
 
-    fn bind_group_layout(render_device: &RenderDevice) -> BindGroupLayout {
-        render_device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-            label: None,
-            entries: &[
-                BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: ShaderStages::FRAGMENT,
-                    ty: BindingType::Texture {
-                        multisampled: false,
-                        view_dimension: TextureViewDimension::D2,
-                        sample_type: TextureSampleType::Float { filterable: true },
-                    },
-                    count: None,
-                },
-                BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: ShaderStages::FRAGMENT,
-                    ty: BindingType::Sampler(SamplerBindingType::Filtering),
-                    count: None,
-                },
-            ],
-        })
-    }
-
-    fn fragment_shader(asset_server: &AssetServer) -> Option<Handle<Shader>> {
-        Some(asset_server.load("shaders/fxaa.wgsl"))
-    }
-
-    fn vertex_shader(asset_server: &AssetServer) -> Option<Handle<Shader>> {
-        Some(asset_server.load("shaders/fxaa.wgsl"))
-    }
-}
-
-impl RenderAsset for PostProcessingMaterial {
-    type ExtractedAsset = PostProcessingMaterial;
-    type PreparedAsset = PostProcessingMaterialGPU;
-    type Param = (
-        SRes<RenderDevice>,
-        SRes<Material2dPipeline<PostProcessingMaterial>>,
-        SRes<RenderAssets<Image>>,
-    );
-
-    fn prepare_asset(
-        extracted_asset: PostProcessingMaterial,
-        (render_device, pipeline, images): &mut SystemParamItem<Self::Param>,
-    ) -> Result<PostProcessingMaterialGPU, PrepareAssetError<PostProcessingMaterial>> {
-        let (view, sampler) = if let Some(result) = pipeline
-            .mesh2d_pipeline
-            .get_image_texture(images, &Some(extracted_asset.source_image.clone()))
-        {
-            result
-        } else {
-            return Err(PrepareAssetError::RetryNextUpdate(extracted_asset));
-        };
-
-        let bind_group = render_device.create_bind_group(&BindGroupDescriptor {
-            label: None,
-            layout: &pipeline.material2d_layout,
-            entries: &[
-                BindGroupEntry {
-                    binding: 0,
-                    resource: BindingResource::TextureView(view),
-                },
-                BindGroupEntry {
-                    binding: 1,
-                    resource: BindingResource::Sampler(sampler),
-                },
-            ],
-        });
-        Ok(PostProcessingMaterialGPU { bind_group })
-    }
-
-    fn extract_asset(&self) -> PostProcessingMaterial {
-        self.clone()
+    fn vertex_shader() -> ShaderRef {
+        "shaders/fxaa.wgsl".into()
     }
 }
