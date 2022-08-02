@@ -9,7 +9,8 @@ use bevy::{
         },
         view::RenderLayers,
     },
-    sprite::{Material2d, Material2dPlugin, MaterialMesh2dBundle},
+    sprite::{Material2d, Material2dPlugin, MaterialMesh2dBundle, Mesh2dHandle},
+    window::WindowResized,
 };
 
 fn main() {
@@ -18,7 +19,8 @@ fn main() {
         .insert_resource(Msaa { samples: 1 })
         .add_plugin(Material2dPlugin::<PostProcessingMaterial>::default())
         .add_startup_system(setup)
-        .add_system(main_camera_cube_rotator_system);
+        .add_system(main_camera_cube_rotator_system)
+        .add_system(window_resized);
 
     app.run();
 }
@@ -26,6 +28,9 @@ fn main() {
 /// Marks the first camera cube (rendered to a texture.)
 #[derive(Component)]
 struct MainCube;
+
+#[derive(Component)]
+struct PostProcessMesh;
 
 fn setup(
     mut commands: Commands,
@@ -43,25 +48,11 @@ fn setup(
     };
 
     // This is the texture that will be rendered to.
-    let mut image = Image {
-        texture_descriptor: TextureDescriptor {
-            label: None,
-            size,
-            dimension: TextureDimension::D2,
-            format: TextureFormat::Bgra8UnormSrgb,
-            mip_level_count: 1,
-            sample_count: 1,
-            usage: TextureUsages::TEXTURE_BINDING
-                | TextureUsages::COPY_DST
-                | TextureUsages::RENDER_ATTACHMENT,
-        },
-        ..default()
-    };
-
-    // fill image.data with zeroes
-    image.resize(size);
-
-    let image_handle = images.add(image);
+    let image_handle = images.add(setup_image(
+        window.physical_width(),
+        window.physical_height(),
+        TextureFormat::Bgra8UnormSrgb,
+    ));
 
     let cube_handle = meshes.add(Mesh::from(shape::Cube { size: 4.0 }));
     let cube_material_handle = materials.add(StandardMaterial {
@@ -76,7 +67,8 @@ fn setup(
         .spawn_bundle(PbrBundle {
             mesh: cube_handle,
             material: cube_material_handle,
-            transform: Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
+            transform: Transform::from_translation(Vec3::new(0.0, 0.0, 1.0))
+                .with_scale(Vec3::new(2.0, 2.0, 2.0)),
             ..default()
         })
         .insert(MainCube);
@@ -123,7 +115,8 @@ fn setup(
             },
             ..default()
         })
-        .insert(post_processing_pass_layer);
+        .insert(post_processing_pass_layer)
+        .insert(PostProcessMesh);
 
     // The post-processing pass camera.
     commands
@@ -147,6 +140,59 @@ fn main_camera_cube_rotator_system(
         transform.rotate_x(0.55 * time.delta_seconds());
         transform.rotate_z(0.15 * time.delta_seconds());
     }
+}
+
+fn window_resized(
+    mut window_resized_events: EventReader<WindowResized>,
+    mut post_processing_materials: ResMut<Assets<PostProcessingMaterial>>,
+    mut images: ResMut<Assets<Image>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    post_process_mesh: Query<&Mesh2dHandle, With<PostProcessMesh>>,
+    mut image_events: EventWriter<AssetEvent<Image>>,
+) {
+    if let Some(event) = window_resized_events.iter().last() {
+        let width = event.width as u32;
+        let height = event.height as u32;
+        if let Some((_, mat)) = post_processing_materials.iter_mut().next() {
+            let image_handle = images.set(
+                mat.source_image.clone(),
+                setup_image(width, height, TextureFormat::Bgra8UnormSrgb),
+            );
+            image_events.send(AssetEvent::Modified {
+                handle: image_handle,
+            });
+
+            // Resize Mesh
+            for mesh in post_process_mesh.iter() {
+                let quad = Mesh::from(shape::Quad::new(Vec2::new(width as f32, height as f32)));
+                let _ = meshes.set(mesh.0.clone(), quad);
+            }
+        }
+    }
+}
+
+fn setup_image(width: u32, height: u32, format: TextureFormat) -> Image {
+    let size = Extent3d {
+        width,
+        height,
+        ..default()
+    };
+    let mut image = Image {
+        texture_descriptor: TextureDescriptor {
+            label: None,
+            size,
+            dimension: TextureDimension::D2,
+            format,
+            mip_level_count: 1,
+            sample_count: 1,
+            usage: TextureUsages::TEXTURE_BINDING
+                | TextureUsages::COPY_DST
+                | TextureUsages::RENDER_ATTACHMENT,
+        },
+        ..default()
+    };
+    image.resize(size);
+    image
 }
 
 // Region below declares of the custom material handling post processing effect
