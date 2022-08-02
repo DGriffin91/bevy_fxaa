@@ -48,11 +48,23 @@ fn setup(
     };
 
     // This is the texture that will be rendered to.
-    let image_handle = images.add(setup_image(
-        window.physical_width(),
-        window.physical_height(),
-        TextureFormat::Bgra8UnormSrgb,
-    ));
+    let mut image = Image {
+        texture_descriptor: TextureDescriptor {
+            label: None,
+            size,
+            dimension: TextureDimension::D2,
+            format: TextureFormat::Bgra8UnormSrgb,
+            mip_level_count: 1,
+            sample_count: 1,
+            usage: TextureUsages::TEXTURE_BINDING
+                | TextureUsages::COPY_DST
+                | TextureUsages::RENDER_ATTACHMENT,
+        },
+        ..default()
+    };
+    image.resize(size);
+
+    let image_handle = images.add(image);
 
     let cube_handle = meshes.add(Mesh::from(shape::Cube { size: 4.0 }));
     let cube_material_handle = materials.add(StandardMaterial {
@@ -154,12 +166,14 @@ fn window_resized(
         let width = event.width as u32;
         let height = event.height as u32;
         if let Some((_, mat)) = post_processing_materials.iter_mut().next() {
-            let image_handle = images.set(
-                mat.source_image.clone(),
-                setup_image(width, height, TextureFormat::Bgra8UnormSrgb),
-            );
+            let image = images.get_mut(&mat.source_image).unwrap();
+            image.resize(Extent3d {
+                width,
+                height,
+                ..default()
+            });
             image_events.send(AssetEvent::Modified {
-                handle: image_handle,
+                handle: mat.source_image.clone(),
             });
 
             // Resize Mesh
@@ -169,30 +183,6 @@ fn window_resized(
             }
         }
     }
-}
-
-fn setup_image(width: u32, height: u32, format: TextureFormat) -> Image {
-    let size = Extent3d {
-        width,
-        height,
-        ..default()
-    };
-    let mut image = Image {
-        texture_descriptor: TextureDescriptor {
-            label: None,
-            size,
-            dimension: TextureDimension::D2,
-            format,
-            mip_level_count: 1,
-            sample_count: 1,
-            usage: TextureUsages::TEXTURE_BINDING
-                | TextureUsages::COPY_DST
-                | TextureUsages::RENDER_ATTACHMENT,
-        },
-        ..default()
-    };
-    image.resize(size);
-    image
 }
 
 // Region below declares of the custom material handling post processing effect
